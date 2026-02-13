@@ -179,6 +179,85 @@ local usage = {
     },
 }
 
+local WRAPPING = {
+    SMART = 0,
+    EOL = 1,
+    NO_WORD = 2,
+    SMART_WIDER = 3,
+}
+
+local ALIGNMENT = {
+    BOTTOM_LEFT = 1,
+    BOTTOM_CENTER = 2,
+    BOTTOM_RIGHT = 3,
+    MIDDLE_LEFT = 4,
+    MIDDLE_CENTER = 5,
+    MIDDLE_RIGHT = 6,
+    TOP_LEFT = 7,
+    TOP_CENTER = 8,
+    TOP_RIGHT = 9,
+}
+
+local render_text = function(ass, text, opts)
+    opts = opts or {}
+    opts.line_alignment = opts.line_alignment or MIDDLE_CENTER
+    opts.font = opts.font or M._opts.font
+    opts.font_size = opts.font_size or M._opts.font_size
+    opts.letter_spacing = opts.letter_spacing or 0
+
+    opts.primary = opts.primary or {}
+    opts.primary.alpha = opts.primary.alpha or "00"
+    opts.primary.color = opts.primary.color or "ffffff"
+
+    if opts.border then
+        opts.border.size = opts.border.size or 0
+        opts.border.alpha = opts.border.alpha or "00"
+        opts.border.color = opts.border.color or "ffffff"
+    end
+
+    if opts.shadow then
+        if type(opts.shadow.size) == "table" then
+            opts.shadow.size.x = opts.shadow.size.x or 0
+            opts.shadow.size.y = opts.shadow.size.y or 0
+        end
+        opts.shadow.alpha = opts.shadow.alpha or "00"
+        opts.shadow.color = opts.shadow.color or "ffffff"
+    end
+
+    local tags = ""
+
+    tags = tags .. "\\an" .. opts.line_alignment
+    tags = tags .. "\\fn" .. opts.font
+    tags = tags .. "\\fs" .. opts.font_size
+    tags = tags .. "\\fsp" .. opts.letter_spacing
+    if opts.wrap_style then
+        tags = tags .. "\\q" .. opts.wrap_style
+    end
+
+    tags = tags .. ("\\1a&H" .. opts.primary.alpha .. "&")
+    tags = tags .. ("\\1c&H" .. opts.primary.color .. "&")
+
+    if opts.border then
+        tags = tags .. "\\bord" .. opts.border.size
+        tags = tags .. "\\3a&H" .. opts.border.alpha .. "&"
+        tags = tags .. "\\3c&H" .. opts.border.color .. "&"
+    end
+
+    if opts.shadow then
+        if type(opts.shadow.size) == "table" then
+            tags = tags .. "\\xshad" .. opts.shadow.size.x
+            tags = tags .. "\\yshad" .. opts.shadow.size.y
+        else
+            tags = tags .. "\\shad" .. opts.shadow.size
+        end
+        tags = tags .. "\\4a&H" .. opts.shadow.alpha .. "&"
+        tags = tags .. "\\4c&H" .. opts.shadow.color .. "&"
+    end
+
+    ass:new_event()
+    ass:append("{" .. tags .. "}" .. text)
+end
+
 local render_category = function(category)
     local lines = {}
 
@@ -209,24 +288,6 @@ M.render = function()
 
     local ass = assdraw.ass_new()
 
-    ass:new_event()
-    ass:append("{")
-    ass:append("\\an7") -- lineAlignment(TOP_LEFT)
-    ass:append("\\1a&H00&") -- primaryFillAlpha('00')
-    ass:append("\\3a&H00&") -- borderAlpha('00')
-    ass:append("\\4a&H99&") -- shadowAlpha('99')
-    ass:append("\\1c&Heeeeee&") -- primaryFillColor('eeeeee')
-    ass:append("\\3c&H111111&") -- borderColor('111111')
-    ass:append("\\4c&H000000&") -- shadowColor('111111')
-    ass:append("\\fn" .. M._opts.font) -- fontName(opts.font)
-    ass:append("\\fs" .. M._opts.font_size) -- fontSize(opts['font-size'])
-    ass:append("\\bord1") -- borderSize(1)
-    ass:append("\\xshad0") -- xShadowDistance(0)
-    ass:append("\\yshad1") -- yShadowDistance(1)
-    ass:append("\\fsp1") -- letterSpacing(0)
-    ass:append("\\q1") -- wrapStyle(EOL_WRAPPING)
-    ass:append("}")
-
     local lines = {}
 
     for i = M._state.start_category, #M.shortcuts do
@@ -237,23 +298,22 @@ M.render = function()
         table.insert(lines, "")
     end
 
-    for i = M._state.start_line, #lines do
-        local line = lines[i]
-        ass:append(line .. "\\N")
-    end
-
-    ass:new_event()
-
-    ass:append("{")
-    ass:append("\\an9") -- lineAlignment(TOP_RIGHT)
-    ass:append("\\fs" .. M._opts.usage_font_size) -- fontSize(opts['usage-font-size'])
-    ass:append("}")
+    local main_text = table.concat(lines, "\\N", M._state.start_line, #lines)
+    render_text(ass, main_text, {
+        line_alignment = ALIGNMENT.TOP_LEFT,
+        wrap_style = WRAPPING.EOL,
+        primary = { color = "eeeeee" },
+        border = { color = "111111", size = 1 },
+        shadow = { color = "111111", alpha = "99", size = { y = 1 } },
+    })
 
     local side_lines = render_category(usage)
 
-    for _, line in ipairs(side_lines) do
-        ass:append(line .. "\\N")
-    end
+    local side_text = table.concat(side_lines, "\\N")
+    render_text(ass, side_text, {
+        font_size = M._opts.usage_font_size,
+        line_alignment = ALIGNMENT.TOP_RIGHT,
+    })
 
     mp.set_osd_ass(0, 0, ass.text)
 end
