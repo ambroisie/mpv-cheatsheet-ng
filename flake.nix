@@ -34,7 +34,7 @@
           mpvScripts = final.lib.makeScope prev.mpvScripts.newScope (_: {
             mpv-cheatsheet-ng = with final; pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
               pname = "mpv-cheatsheet-ng";
-              version = "0.1.0";
+              version = "0.0.0";
 
               src = self;
 
